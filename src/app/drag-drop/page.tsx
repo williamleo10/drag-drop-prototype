@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DndContext,              // Area utama drag-and-drop
   PointerSensor,           // Sensor untuk mouse
@@ -17,7 +17,9 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import Image from "next/image";
 
-export default function AdminPhotobooth() {
+export default function DragDropPage() {
+  const [isClient, setIsClient] = useState(false);
+
   // Data awal gambar
   const initialImages = [
     "image1.png",
@@ -35,6 +37,13 @@ export default function AdminPhotobooth() {
 
   // Aktifkan sensor drag pakai mouse
   const sensors = useSensors(useSensor(PointerSensor));
+
+  // Inisialisasi ketika komponen dimuat
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  if (!isClient) return null;
 
   // Fungsi ketika drag selesai
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -94,7 +103,7 @@ export default function AdminPhotobooth() {
 
   return (
     <div className="min-h-screen p-8 bg-gray-100 text-black">
-      <h1 className="text-2xl font-bold mb-6">Photobooth Admin Drag & Drop</h1>
+      <h1 className="text-2xl font-bold mb-6">Photobooth Drag & Drop</h1>
 
       {/* Area utama drag and drop */}
       <DndContext
