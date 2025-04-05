@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import {
   DndContext,              // Area utama drag-and-drop
   PointerSensor,           // Sensor untuk mouse
@@ -141,14 +141,7 @@ export default function DragDropPage() {
       <div className="mt-8 bg-white p-4 rounded shadow">
         <h2 className="text-lg font-semibold mb-2">Output JSON</h2>
         <pre className="text-sm bg-gray-100 p-2 rounded overflow-x-auto">
-          {JSON.stringify(
-            {
-              left: leftImages,
-              right: rightImages,
-            },
-            null,
-            2
-          )}
+          {JSON.stringify([...leftImages, ...rightImages], null, 2)}
         </pre>
       </div>
     </div>
