@@ -57,7 +57,6 @@ export default function DSLRBoothCompleteEditor() {
     { id: 1, type: "frame", name: "Frame", visible: true, zIndex: 1, locked: false }
   ]);
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [photoImages, setPhotoImages] = useState<Record<number, string>>({});
   const [selectedLayerId, setSelectedLayerId] = useState<number | null>(1);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<Position>({ x: 0, y: 0 });
@@ -86,7 +85,7 @@ export default function DSLRBoothCompleteEditor() {
     if (isClient) {
       renderCanvas();
     }
-  }, [isClient, canvasSize, frameImage, framePos, frameSize, layers, photos, photoImages, selectedLayerId]);
+  }, [isClient, canvasSize, frameImage, framePos, frameSize, layers, photos, selectedLayerId]);
 
   // Add a new state to history
   const addToHistory = () => {
