@@ -1,32 +1,78 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, MouseEvent } from "react";
+
+// Define interfaces for your data structures
+interface Photo {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  scale: number;
+  color: string;
+  imageData: string | null;
+}
+
+interface Layer {
+  id: number;
+  type: "frame" | "photo";
+  name: string;
+  visible: boolean;
+  zIndex: number;
+  locked: boolean;
+  photoId?: number; // Optional since frame layers don't have this
+}
+
+interface FrameImage {
+  name: string;
+  imageData: string;
+}
+
+interface Position {
+  x: number;
+  y: number;
+}
+
+interface Size {
+  width: number;
+  height: number;
+}
+
+interface HistoryState {
+  framePos: Position;
+  frameSize: Size;
+  layers: Layer[];
+  photos: Photo[];
+  frameImage: FrameImage | null;
+}
 
 export default function DSLRBoothCompleteEditor() {
-  const [isClient, setIsClient] = useState(false);
-  const [canvasSize, setCanvasSize] = useState({ width: 276, height: 828 });
-  const [frameImage, setFrameImage] = useState(null);
-  const [framePos, setFramePos] = useState({ x: 0, y: 0 });
-  const [frameSize, setFrameSize] = useState({ width: 276, height: 828 });
-  const [layers, setLayers] = useState([
+  const [isClient, setIsClient] = useState<boolean>(false);
+  const [canvasSize, setCanvasSize] = useState<Size>({ width: 276, height: 828 });
+  const [frameImage, setFrameImage] = useState<FrameImage | null>(null);
+  const [framePos, setFramePos] = useState<Position>({ x: 0, y: 0 });
+  const [frameSize, setFrameSize] = useState<Size>({ width: 276, height: 828 });
+  const [layers, setLayers] = useState<Layer[]>([
     { id: 1, type: "frame", name: "Frame", visible: true, zIndex: 1, locked: false }
   ]);
-  const [photos, setPhotos] = useState([]);
-  const [photoImages, setPhotoImages] = useState({});
-  const [selectedLayerId, setSelectedLayerId] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [nextPhotoId, setNextPhotoId] = useState(1);
-  const [nextLayerId, setNextLayerId] = useState(2);
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [photoImages, setPhotoImages] = useState<Record<number, string>>({});
+  const [selectedLayerId, setSelectedLayerId] = useState<number | null>(1);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [dragStart, setDragStart] = useState<Position>({ x: 0, y: 0 });
+  const [nextPhotoId, setNextPhotoId] = useState<number>(1);
+  const [nextLayerId, setNextLayerId] = useState<number>(2);
 
   // History states for undo/redo functionality
-  const [history, setHistory] = useState([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [history, setHistory] = useState<HistoryState[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
 
-  const canvasRef = useRef(null);
-  const frameInputRef = useRef(null);
-  const photoInputRef = useRef(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const frameInputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Warna untuk foto placeholder
+  // Colors for photo placeholder
   const photoColors = [
     "#FF4747", "#9ACD32", "#4169E1", "#FFA500",
     "#8A2BE2", "#20B2AA", "#FF69B4", "#FF8C00"
@@ -45,12 +91,16 @@ export default function DSLRBoothCompleteEditor() {
   // Add a new state to history
   const addToHistory = () => {
     // Create a deep copy of the current state
-    const currentState = {
+    const currentState: HistoryState = {
       framePos: { ...framePos },
       frameSize: { ...frameSize },
       layers: JSON.parse(JSON.stringify(layers)),
       photos: JSON.parse(JSON.stringify(photos)),
-      frameImage: frameImage ? { ...frameImage } : null
+      // Fix: Handle frameImage properly for history
+      frameImage: frameImage ? {
+        name: frameImage.name,
+        imageData: frameImage.imageData
+      } : null
     };
 
     // If we're not at the end of the history, remove future states
@@ -94,10 +144,12 @@ export default function DSLRBoothCompleteEditor() {
 
   // Center the selected layer on the canvas
   const centerSelectedLayer = () => {
+    if (!selectedLayerId) return;
+
     const selectedLayer = layers.find(l => l.id === selectedLayerId);
     if (!selectedLayer) return;
 
-    if (selectedLayer.type === "photo") {
+    if (selectedLayer.type === "photo" && selectedLayer.photoId !== undefined) {
       const photoId = selectedLayer.photoId;
       const updatedPhotos = photos.map(photo => {
         if (photo.id === photoId) {
@@ -146,6 +198,7 @@ export default function DSLRBoothCompleteEditor() {
     canvas.height = canvasSize.height;
 
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     // Draw white background
     ctx.fillStyle = "#FFFFFF";
@@ -222,7 +275,7 @@ export default function DSLRBoothCompleteEditor() {
           }
         }
       }
-      else if (layer.type === "photo") {
+      else if (layer.type === "photo" && layer.photoId !== undefined) {
         const photo = photos.find(p => p.id === layer.photoId);
         if (!photo) return;
 
@@ -318,7 +371,7 @@ export default function DSLRBoothCompleteEditor() {
     });
   };
 
-  const handleCanvasClick = (e) => {
+  const handleCanvasClick = (e: MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -329,7 +382,7 @@ export default function DSLRBoothCompleteEditor() {
     const y = (e.clientY - rect.top) * scaleY;
 
     // Check if we clicked on anything
-    let clickedLayerId = null;
+    let clickedLayerId: number | null = null;
 
     // Start from the topmost layer (highest zIndex) and work backwards
     const sortedLayers = [...layers].sort((a, b) => b.zIndex - a.zIndex);
@@ -337,7 +390,7 @@ export default function DSLRBoothCompleteEditor() {
     for (const layer of sortedLayers) {
       if (!layer.visible) continue;
 
-      if (layer.type === "photo") {
+      if (layer.type === "photo" && layer.photoId !== undefined) {
         const photo = photos.find(p => p.id === layer.photoId);
         if (!photo) continue;
 
@@ -368,14 +421,12 @@ export default function DSLRBoothCompleteEditor() {
       }
     }
 
-    if (clickedLayerId) {
-      setSelectedLayerId(clickedLayerId);
-    } else {
-      setSelectedLayerId(null);
-    }
+    setSelectedLayerId(clickedLayerId);
   };
 
-  const handleMouseDown = (e) => {
+  const handleMouseDown = (e: MouseEvent<HTMLCanvasElement>) => {
+    if (!selectedLayerId) return;
+
     const selectedLayer = layers.find(l => l.id === selectedLayerId);
     if (!selectedLayer) return;
 
@@ -395,8 +446,8 @@ export default function DSLRBoothCompleteEditor() {
     setDragStart({ x, y });
   };
 
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
+  const handleMouseMove = (e: MouseEvent<HTMLCanvasElement>) => {
+    if (!isDragging || !selectedLayerId) return;
 
     const selectedLayer = layers.find(l => l.id === selectedLayerId);
     if (!selectedLayer) return;
@@ -416,7 +467,7 @@ export default function DSLRBoothCompleteEditor() {
     const deltaX = x - dragStart.x;
     const deltaY = y - dragStart.y;
 
-    if (selectedLayer.type === "photo") {
+    if (selectedLayer.type === "photo" && selectedLayer.photoId !== undefined) {
       const photoId = selectedLayer.photoId;
       const updatedPhotos = photos.map(photo => {
         if (photo.id === photoId) {
@@ -462,7 +513,7 @@ export default function DSLRBoothCompleteEditor() {
     const y = canvasSize.height / 2;
 
     // Create new photo
-    const newPhoto = {
+    const newPhoto: Photo = {
       id: newPhotoId,
       x,
       y,
@@ -475,7 +526,7 @@ export default function DSLRBoothCompleteEditor() {
     };
 
     // Create new layer for this photo
-    const newLayer = {
+    const newLayer: Layer = {
       id: nextLayerId,
       type: "photo",
       name: `Photo ${newPhotoId}`,
@@ -502,19 +553,20 @@ export default function DSLRBoothCompleteEditor() {
     frameInputRef.current?.click();
   };
 
-  const handleFrameUpload = (e) => {
+  const handleFrameUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Read file as data URL
     const reader = new FileReader();
     reader.onload = (event) => {
-      const imageData = event.target.result;
+      const result = event.target?.result;
+      if (typeof result !== 'string') return;
 
       // Update frame image with data
       setFrameImage({
         name: file.name,
-        imageData
+        imageData: result
       });
 
       // Add to history after loading
@@ -524,11 +576,11 @@ export default function DSLRBoothCompleteEditor() {
     reader.readAsDataURL(file);
 
     // Reset the input
-    e.target.value = null;
+    e.target.value = "";
   };
 
   const uploadPhotoImage = () => {
-    const selectedLayer = layers.find(l => l.id === selectedLayerId);
+    const selectedLayer = selectedLayerId ? layers.find(l => l.id === selectedLayerId) : null;
     if (!selectedLayer || selectedLayer.type !== "photo") {
       alert("Please select a photo layer first.");
       return;
@@ -537,26 +589,27 @@ export default function DSLRBoothCompleteEditor() {
     photoInputRef.current?.click();
   };
 
-  const handlePhotoUpload = (e) => {
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const selectedLayer = layers.find(l => l.id === selectedLayerId);
-    if (!selectedLayer || selectedLayer.type !== "photo") return;
+    const selectedLayer = selectedLayerId ? layers.find(l => l.id === selectedLayerId) : null;
+    if (!selectedLayer || selectedLayer.type !== "photo" || selectedLayer.photoId === undefined) return;
 
     const photoId = selectedLayer.photoId;
 
     // Read file as data URL
     const reader = new FileReader();
     reader.onload = (event) => {
-      const imageData = event.target.result;
+      const result = event.target?.result;
+      if (typeof result !== 'string') return;
 
       // Update photo with image data
       const updatedPhotos = photos.map(photo => {
         if (photo.id === photoId) {
           return {
             ...photo,
-            imageData
+            imageData: result
           };
         }
         return photo;
@@ -571,10 +624,12 @@ export default function DSLRBoothCompleteEditor() {
     reader.readAsDataURL(file);
 
     // Reset the input
-    e.target.value = null;
+    e.target.value = "";
   };
 
   const deleteSelectedLayer = () => {
+    if (!selectedLayerId) return;
+
     const selectedLayer = layers.find(l => l.id === selectedLayerId);
     if (!selectedLayer) return;
 
@@ -583,7 +638,7 @@ export default function DSLRBoothCompleteEditor() {
 
     // Also remove the photo if it's a photo layer
     let updatedPhotos = [...photos];
-    if (selectedLayer.type === "photo") {
+    if (selectedLayer.type === "photo" && selectedLayer.photoId !== undefined) {
       updatedPhotos = photos.filter(p => p.id !== selectedLayer.photoId);
     }
 
@@ -601,7 +656,7 @@ export default function DSLRBoothCompleteEditor() {
     addToHistory();
   };
 
-  const toggleLayerVisibility = (layerId) => {
+  const toggleLayerVisibility = (layerId: number) => {
     const updatedLayers = layers.map(layer => {
       if (layer.id === layerId) {
         return { ...layer, visible: !layer.visible };
@@ -613,7 +668,7 @@ export default function DSLRBoothCompleteEditor() {
     addToHistory();
   };
 
-  const moveLayerToTop = (layerId) => {
+  const moveLayerToTop = (layerId: number) => {
     const layerToMove = layers.find(l => l.id === layerId);
     if (!layerToMove) return;
 
@@ -634,7 +689,7 @@ export default function DSLRBoothCompleteEditor() {
     }
   };
 
-  const moveLayerToBottom = (layerId) => {
+  const moveLayerToBottom = (layerId: number) => {
     const layerToMove = layers.find(l => l.id === layerId);
     if (!layerToMove) return;
 
@@ -655,9 +710,11 @@ export default function DSLRBoothCompleteEditor() {
     }
   };
 
-  const rotateSelectedPhoto = (degrees) => {
+  const rotateSelectedPhoto = (degrees: number) => {
+    if (!selectedLayerId) return;
+
     const selectedLayer = layers.find(l => l.id === selectedLayerId);
-    if (!selectedLayer || selectedLayer.type !== "photo" || selectedLayer.locked) return;
+    if (!selectedLayer || selectedLayer.type !== "photo" || selectedLayer.locked || selectedLayer.photoId === undefined) return;
 
     const photoId = selectedLayer.photoId;
     const updatedPhotos = photos.map(photo => {
@@ -674,9 +731,11 @@ export default function DSLRBoothCompleteEditor() {
     addToHistory();
   };
 
-  const scaleSelectedPhoto = (factor) => {
+  const scaleSelectedPhoto = (factor: number) => {
+    if (!selectedLayerId) return;
+
     const selectedLayer = layers.find(l => l.id === selectedLayerId);
-    if (!selectedLayer || selectedLayer.type !== "photo" || selectedLayer.locked) return;
+    if (!selectedLayer || selectedLayer.type !== "photo" || selectedLayer.locked || selectedLayer.photoId === undefined) return;
 
     const photoId = selectedLayer.photoId;
     const updatedPhotos = photos.map(photo => {
@@ -697,8 +756,10 @@ export default function DSLRBoothCompleteEditor() {
     const widthStr = prompt("Enter canvas width (pixels):", canvasSize.width.toString());
     const heightStr = prompt("Enter canvas height (pixels):", canvasSize.height.toString());
 
-    const width = parseInt(widthStr || "276");
-    const height = parseInt(heightStr || "828");
+    if (!widthStr || !heightStr) return;
+
+    const width = parseInt(widthStr);
+    const height = parseInt(heightStr);
 
     if (width > 0 && height > 0) {
       setCanvasSize({ width, height });
@@ -742,7 +803,7 @@ export default function DSLRBoothCompleteEditor() {
   };
 
   const addNewFrameLayer = () => {
-    const newFrameLayer = {
+    const newFrameLayer: Layer = {
       id: nextLayerId,
       type: "frame",
       name: "New Frame",
@@ -772,7 +833,7 @@ export default function DSLRBoothCompleteEditor() {
 
   // Check if selected layer is locked
   const isSelectedLayerLocked = (() => {
-    const selectedLayer = layers.find(l => l.id === selectedLayerId);
+    const selectedLayer = selectedLayerId ? layers.find(l => l.id === selectedLayerId) : null;
     return selectedLayer ? selectedLayer.locked : false;
   })();
 
@@ -861,14 +922,7 @@ export default function DSLRBoothCompleteEditor() {
             <span>Undo</span>
           </div>
 
-          <div
-            className={`p-3 border-b border-gray-700 ${canUndo ? 'hover:bg-gray-700 cursor-pointer' : 'opacity-50 cursor-not-allowed'} flex items-center`}
-            onClick={canUndo ? handleUndo : undefined}
-          >
-            <span className="mr-2">↩️</span>
-            <span>Undo</span>
-          </div>
-
+          {/* Fixed: Changed from duplicate Undo to Redo */}
           <div
             className={`p-3 border-b border-gray-700 ${canRedo ? 'hover:bg-gray-700 cursor-pointer' : 'opacity-50 cursor-not-allowed'} flex items-center`}
             onClick={canRedo ? handleRedo : undefined}
@@ -1048,7 +1102,7 @@ export default function DSLRBoothCompleteEditor() {
                       </div>
                     )}
 
-                    {layer.type === "photo" && (
+                    {layer.type === "photo" && layer.photoId !== undefined && (
                       <div
                         className="w-8 h-8 flex items-center justify-center mr-2"
                         style={{
@@ -1125,7 +1179,7 @@ export default function DSLRBoothCompleteEditor() {
 
                   {selectedLayerId === layer.id && (
                     <div className="bg-gray-700 p-2 text-xs">
-                      {layer.type === "photo" && (
+                      {layer.type === "photo" && layer.photoId !== undefined && (
                         <>
                           <div className="mb-1">
                             <span className="text-gray-400">Position:</span>
